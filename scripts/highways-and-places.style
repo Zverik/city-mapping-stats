@@ -1,0 +1,18 @@
+# OsmType  Tag          DataType     Flags
+node,way   note         text         delete   # These tags can be long but are useless for rendering
+node,way   source       text         delete   # This indicates that we shouldn't store them
+node,way   created_by   text         delete
+
+node,way   highway      text         linear
+node,way   place        text         polygon
+node,way name text linear
+node,way lanes text linear
+node,way lanes:forward text linear
+node,way lanes:backward text linear
+node,way maxspeed text linear
+node,way maxspeed:forward text linear
+node,way maxspeed:backward text linear
+node,way crossing text linear
+node,way traffic_calming text linear
+way        way_area     real                # This is calculated during import
+
