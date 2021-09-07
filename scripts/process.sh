@@ -14,7 +14,9 @@ export POSTGRES_HOST_AUTH_METHOD=trust
 
 psql=( psql -U "$POSTGRES_USER" -d "$POSTGRES_DATABASE" -v ON_ERROR_STOP=1 )
 
-wget -q -O data.osm.pbf http://download.geofabrik.de/russia-latest.osm.pbf
+wget --progress=dot:giga -O data.osm.pbf http://download.geofabrik.de/russia-latest.osm.pbf
+osmium tags-filter data.osm.pbf w/highway place -o fdata.osm.pbf
+rm data.osm.pbf
 
 for i in `seq 1 120`; do
   echo "Waiting for PostgreSQL start, attempt $i..."
@@ -23,7 +25,7 @@ for i in `seq 1 120`; do
 done
 
 osm2pgsql --slim --drop --number-processes 4 -G --style=highways-and-places.style \
-    -U ${POSTGRES_USER} -d ${POSTGRES_DATABASE} data.osm.pbf
+    -U ${POSTGRES_USER} -d ${POSTGRES_DATABASE} fdata.osm.pbf
 
 DATE=$(date -d yesterday +%y%m%d_%H%M)
 "${psql[@]}" -f post_import.sql
