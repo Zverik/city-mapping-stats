@@ -9,8 +9,21 @@ from shapely.geometry import Point, LineString
 from shapely.strtree import STRtree
 
 
-COLUMNS = ['ts', 'action', 'obj_action', 'kind', 'changeset', 'uid', 'username',
-           'osm_id', 'region', 'lat', 'lon', 'length']
+COLUMNS = [
+    ('ts', 'timestamp with time zone not null'),
+    ('action', 'text not null'),
+    ('obj_action', 'text not null'),
+    ('kind', 'text not null'),
+    ('changeset', 'integer not null'),
+    ('uid', 'integer not null'),
+    ('username', 'text not null'),
+    ('osm_id', 'text not null'),
+    ('version', 'integer not null'),
+    ('region', 'text'),
+    ('lat', 'double precision not null'),
+    ('lon', 'double precision not null'),
+    ('length', 'integer'),
+]
 
 
 class Regions:
@@ -45,11 +58,12 @@ def get_float_attr(attr, obj, backup=None):
 
 def init_data_from_object(obj, backup=None):
     result = {
-        'ts': obj.get('timestamp'),
+        'ts': obj.get('timestamp').replace('T', ' ').replace('Z', '+00'),
         'changeset': obj.get('changeset'),
         'uid': obj.get('uid'),
         'username': obj.get('user'),
-        'osm_id': f'{obj.tag[0]}{obj.get("id")}',
+        'osm_id': f'{obj.tag}/{obj.get("id")}',
+        'version': obj.get('version'),
     }
     if obj.tag == 'node':
         result.update({
@@ -141,6 +155,34 @@ def get_kinds(obj, old=None):
     return [r for r in result if r[1]]
 
 
+def is_way_inside(way, another):
+    """Returns True if way's nodes are inside another's nodes."""
+    nodes = [n.get('ref') for n in way.findall('nd')]
+    anodes = [n.get('ref') for n in another.findall('nd')]
+    # We look for at least len(nodes) / 2 + 1 matches.
+    cnt_matches = len([n for n in nodes if n in anodes])
+    return nodes[0] in anodes and nodes[-1] in anodes and cnt_matches > len(nodes) / 2
+
+
+def find_way_in_another_modified(way, adiff, is_created: bool):
+    """
+    So we have a created or deleted way. It may be a result of
+    splitting or merging other way(s). So for created way, we look
+    for its nodes inside an old version of another modified way.
+    For deleted way, we look for its nodes inside a new version
+    of another modified way. And we return that way back.
+    """
+    if way.tag != 'way':
+        return None
+    for action in adiff.findall('action'):
+        if action.get('type') != 'modify':
+            continue
+        old_way = action.find('old' if is_created else 'new')[0]
+        if old_way.tag == 'way' and is_way_inside(way, old_way):
+            return old_way
+    return None
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Extracts road changes from an augmented diff file.')
@@ -156,27 +198,16 @@ if __name__ == '__main__':
 
     regions = Regions(options.regions)
     adiff = etree.parse(options.adiff).getroot()
-    writer = csv.DictWriter(options.output, COLUMNS)
+    writer = csv.DictWriter(options.output, [c[0] for c in COLUMNS])
     if not options.table:
         writer.writeheader()
     else:
-        options.output.write(f"""\
-create table if not exists {options.table} (
-    ts timestamp with time zone not null,
-    action text not null,
-    obj_action text not null,
-    kind text not null,
-    changeset integer not null,
-    uid integer not null,
-    username text not null,
-    osm_id text not null,
-    region text,
-    lat double precision,
-    lon double precision,
-    length integer
-);
-copy {options.table} ({','.join(COLUMNS)}) from stdin (format csv);
-""")
+        options.output.write(f"create table if not exists {options.table} (\n")
+        for c in COLUMNS:
+            comma = '' if c == COLUMNS[-1] else ','
+            options.output.write(f"    {c[0]} {c[1]}{comma}\n")
+        col_names = ','.join(c[0] for c in COLUMNS)
+        options.output.write(f"copy {options.table} ({col_names}) from stdin (format csv);\n")
     for action in adiff.findall('action'):
         atype = action.get('type')
         obj = action[0] if atype == 'create' else action.find('new')[0]
@@ -184,6 +215,25 @@ copy {options.table} ({','.join(COLUMNS)}) from stdin (format csv);
             continue
         old = None if atype == 'create' else action.find('old')[0]
         data = init_data_from_object(obj, old)
+        # Note that for deleted objects "obj" has all its data,
+        # and "old" has just some of the header values.
+        ancestor = None
+        if obj.tag == 'way':
+            if atype == 'create':
+                ancestor = find_way_in_another_modified(obj, adiff, True)
+                if ancestor is not None:
+                    sys.stderr.write(f'Found ancestor {ancestor.get("id")} for '
+                                     f'created way {obj.get("id")}!\n')
+                    old = ancestor
+            elif atype == 'delete':
+                ancestor = find_way_in_another_modified(old, adiff, False)
+                if ancestor is not None:
+                    sys.stderr.write(f'Found ancestor {ancestor.get("id")} for '
+                                     f'deleted way {old.get("id")}!\n')
+                    obj = ancestor
+        # TODO: so what do we do with this ancestor way?
+        # We need to fix lengths in data I guess
+        # Or register deletions for the old objects.
         data['obj_action'] = atype
         data['region'] = regions.find(data['lon'], data['lat'])
         if options.regions and not data['region']:

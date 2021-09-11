@@ -4,7 +4,7 @@ import sys
 
 if len(sys.argv) > 1 and '-' in sys.argv[1]:
     try:
-        target_time = datetime.fromisoformat(sys.argv[1])
+        target_time = datetime.fromisoformat(' '.join(sys.argv[1:]))
     except ValueError:
         print('Please use format YYYY-MM-DDTHH:MM[:SS]')
         sys.exit(1)
