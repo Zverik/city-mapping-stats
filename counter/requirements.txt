@@ -1,4 +1,0 @@
-shapely
-lxml
-pyproj
-requests
