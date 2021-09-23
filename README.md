@@ -1,7 +1,7 @@
 # city-mapping-stats
 Scripts to calculate stats for city mapping quality in OSM
 
-# Запуск
+## Запуск
 
 Должен быть установлен докер.
 
@@ -10,3 +10,9 @@ Scripts to calculate stats for city mapping quality in OSM
 Просто запускаете `gen_city_stats.sh` и ждёте.
 
 После работы появятся два csv-файла.
+
+
+## Результат
+
+Ежедневно сгенерированные отчёты опубликованы тут:
+- https://osm-dump.sh21.cc/
