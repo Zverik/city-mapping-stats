@@ -2,8 +2,13 @@ copy (
 with data as (
 select city.name as city,
   sum(st_length(st_transform(r.way, 4326)::geography)) as len,
-  sum(st_length(st_transform(r.way, 4326)::geography)) filter (where r.lanes is not null or r."lanes:forward" is not null or r."lanes:backward" is not null) as len_lanes,
-  sum(st_length(st_transform(r.way, 4326)::geography)) filter (where r.maxspeed is not null or r."maxspeed:forward" is not null or r."maxspeed:backward" is not null) as len_speed
+  sum(st_length(st_transform(r.way, 4326)::geography)) filter (
+    where r.lanes is not null or r."lanes:forward" is not null or r."lanes:backward" is not null
+  ) as len_lanes,
+  sum(st_length(st_transform(r.way, 4326)::geography)) filter (
+    where r.maxspeed is not null or r."maxspeed:forward" is not null or
+    r."maxspeed:backward" is not null or r."maxspeed:type" is not null
+  ) as len_speed
 from planet_osm_polygon city
 left join planet_osm_line r on st_intersects(city.way, r.way)
 where city.place = 'city' and r.is_road
