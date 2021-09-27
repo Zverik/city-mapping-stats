@@ -12,6 +12,7 @@ node,way lanes:backward text linear
 node,way maxspeed text linear
 node,way maxspeed:forward text linear
 node,way maxspeed:backward text linear
+node,way maxspeed:type text linear
 node,way crossing text linear
 node,way traffic_calming text linear
 way        way_area     real                # This is calculated during import
